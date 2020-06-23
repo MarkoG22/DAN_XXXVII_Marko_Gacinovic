@@ -10,11 +10,18 @@ namespace Zadatak_1
 {
     class Program
     {
-        static readonly object locker = new object();
+        static readonly object locker = new object();        
+
+        static readonly Semaphore s = new Semaphore(2, 2);
 
         static Random rnd = new Random();
 
+        static int[] selectedRoutes = new int[10];
         static List<int> routesList = new List<int>();
+        static Thread[] trucks = new Thread[10];
+
+        static int counter = 0;
+        static int count = 0;
 
         static void Main(string[] args)
         {
@@ -24,6 +31,18 @@ namespace Zadatak_1
             route.Start();
             manager.Start();
 
+            route.Join();
+            manager.Join();
+
+            for (int i = 0; i < selectedRoutes.Length; i++)
+            {
+                Thread t = new Thread(() => TruckLoad());
+                t.Name = "Truck_" + (i + 1);
+                trucks[i] = t;
+                t.Start();                
+            }
+
+            
             Console.ReadLine();
         }
 
@@ -73,12 +92,12 @@ namespace Zadatak_1
             {
                 while (routesList.Count < 1000)
                 {
-                    Monitor.Wait(locker);
+                    Monitor.Wait(locker, rnd.Next(3000));
                 }
 
+                routesList = routesList.Distinct().ToList();
                 routesList.Sort();
 
-                int[] selectedRoutes = new int[10];
                 int index = 0;
 
                 for (int i = 0; i < routesList.Count; i++)
@@ -101,7 +120,52 @@ namespace Zadatak_1
                 {
                     Console.Write(selectedRoutes[i] + " ");
                 }
+                Console.WriteLine("\n");
+            }
+        }
+
+        static void TruckLoad()
+        {
+            int loadingTime = 0;
+
+            while (count < 10)
+            {                
+                s.WaitOne();                
+
+                Console.WriteLine("{0} is loading...", Thread.CurrentThread.Name);
+
+                count++;
+
+                loadingTime = rnd.Next(500, 5000);
+
+                Thread.Sleep(loadingTime);
+                
+                s.Release();
+
+                Console.WriteLine("{0} loaded for {1} ms", Thread.CurrentThread.Name, loadingTime);
             }            
+
+            Console.WriteLine("{0} route is: {1}", Thread.CurrentThread.Name, selectedRoutes[counter]);
+            counter++;
+
+            int deliveryTime = rnd.Next(500, 5000);
+
+            Console.WriteLine("\n{0} started, delivery expected for {1} ms", Thread.CurrentThread.Name, deliveryTime);
+
+            if (deliveryTime > 3000)
+            {
+                Console.WriteLine("Delivery expired, {0} is returning for 3000 ms", Thread.CurrentThread.Name);
+                Thread.Sleep(3000);
+                int unloading = loadingTime / (3/2);
+
+                Console.WriteLine("{0} unloaded for {1} ms", Thread.CurrentThread.Name, unloading);
+
+                Thread.Sleep(unloading);
+            }
+            else
+            {
+                Console.WriteLine("{0} successfully delivered the load.", Thread.CurrentThread.Name);
+            }
         }
     }
 }
